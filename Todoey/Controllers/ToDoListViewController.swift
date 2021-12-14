@@ -12,16 +12,18 @@ class ToDoListViewController: UITableViewController {
     
     var itemArray = Array<Item>()
     
+    var selectedCategory: Category? {
+        didSet {
+            loadItems()
+        }
+    }
+    
     let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        
-        print(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask))
-        
-        loadItems()
-        
     }
+    
     //MARK: - TableView DataSource Methods
     
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -68,6 +70,7 @@ class ToDoListViewController: UITableViewController {
                 let newItem = Item(context: self.context)
                 newItem.title = textField.text!
                 newItem.done = false
+                newItem.parentCatgeory = self.selectedCategory
                 self.itemArray.append(newItem)
                 self.saveItems()
             }
@@ -97,14 +100,16 @@ class ToDoListViewController: UITableViewController {
         self.tableView.reloadData()
     }
     
-    func loadItems() {
+    func loadItems(with request: NSFetchRequest<Item> = Item.fetchRequest()) {
         
-        let request: NSFetchRequest<Item> = Item.fetchRequest()
+        let predicate = NSPredicate(format: "parentCategory MATCHES %@", selectedCategory!.name!)
         do {
             itemArray = try context.fetch(request)
         } catch {
             print("Error fetching data from context: \(error)")
         }
+        
+        tableView.reloadData()
     }
         
     @objc func editingChangedHandler(_ sender: Any) {
@@ -126,17 +131,20 @@ extension ToDoListViewController: UISearchBarDelegate {
         
         request.predicate = NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!)
         
-        let sortDescriptor = NSSortDescriptor(key: "title", ascending: true)
+        request.sortDescriptors = [NSSortDescriptor(key: "title", ascending: true)]
         
-        request.sortDescriptors = [sortDescriptor]
-        
-        do {
-            itemArray = try context.fetch(request)
-        } catch {
-            print("Error fetching data from context \(error)")
+        loadItems(with: request)
+                
+    }
+    
+    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+        if searchBar.text?.count == 0 {
+            loadItems()
+            
+            DispatchQueue.main.async {
+                searchBar.resignFirstResponder()
+            }
         }
-        
-        tableView.reloadData()
     }
 }
 
